@@ -2,8 +2,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from telethon import TelegramClient, events
+from telethon import utils
 from telethon.errors import FloodWaitError
-from telethon.tl.types import Channel as TelegramChannel
+from telethon.tl.types import Channel as TelegramChannel, InputPeerChannel
 from .database import Channel, Database
 
 LOGGER = logging.getLogger(__name__)
@@ -16,29 +17,39 @@ class ForwardingService:
     async def resolve_channel(self, value: str) -> Channel:
         entity = await self.client.get_entity(normalize_reference(value))
         if not isinstance(entity, TelegramChannel): raise ValueError("Not a channel")
-        return Channel(int(entity.id), entity.title or "Untitled channel", entity.username)
+        # Store the same peer ID shape emitted by Telethon events (-100...).
+        # `entity.id` alone is only the positive channel ID and will not match
+        # `event.chat_id` for broadcast channels.
+        return Channel(int(utils.get_peer_id(entity)), entity.title or "Untitled channel", entity.username, entity.access_hash)
     async def _on_message(self, event):
         if event.message.grouped_id is None: await self._deliver(event.chat_id, [event.message])
     async def _on_album(self, event): await self._deliver(event.chat_id, list(event.messages))
     async def _deliver(self, raw_source_id, messages):
         if raw_source_id is None or self.database.get_setting("enabled") != "1": return
-        source_id = abs(int(raw_source_id))
+        source_id = int(raw_source_id)
         if source_id not in self.database.channel_ids("source"): return
         message_ids, mode = [int(message.id) for message in messages], self.database.get_setting("mode")
-        for target_id in self.database.channel_ids("target"):
+        for target_channel in self.database.channels("target"):
+            target_id = target_channel.chat_id
             if all(self.database.is_delivered(source_id, message_id, target_id) for message_id in message_ids): continue
             try:
-                await self._send(target_id, messages, mode)
+                await self._send(target_channel, messages, mode)
                 self.database.mark_delivered(source_id, message_ids, target_id)
                 await asyncio.sleep(1)
             except FloodWaitError as error:
                 LOGGER.warning("Telegram requested a %s second flood wait", error.seconds)
                 await asyncio.sleep(error.seconds + 1)
-                await self._send(target_id, messages, mode)
+                await self._send(target_channel, messages, mode)
                 self.database.mark_delivered(source_id, message_ids, target_id)
             except Exception: LOGGER.exception("Delivery failed from %s to %s", source_id, target_id)
-    async def _send(self, target_id, messages, mode):
-        target = await self.client.get_input_entity(target_id)
+    async def _send(self, target_channel, messages, mode):
+        if target_channel.access_hash is not None:
+            entity_id, _ = utils.resolve_id(target_channel.chat_id)
+            target = InputPeerChannel(entity_id, target_channel.access_hash)
+        elif target_channel.username:
+            target = await self.client.get_input_entity(target_channel.username)
+        else:
+            target = await self.client.get_input_entity(target_channel.chat_id)
         if mode == "forward": await self.client.forward_messages(target, messages)
         else:
             # Telethon copies a Message object, including its media and caption.
