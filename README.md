@@ -19,6 +19,8 @@ Get `API_ID` and `API_HASH` from https://my.telegram.org and a bot token from `@
 
 Cloud containers cannot perform the interactive Telegram login. Run `python login.py` on your own computer, then add the printed value as a `TELEGRAM_SESSION` environment variable in your hosting dashboard. Keep `API_ID`, `API_HASH`, `BOT_TOKEN`, and `OWNER_USER_ID` there too. Do not put any of those secrets in GitHub.
 
+Run exactly one copy of the app. Telegram rejects a second `getUpdates` client with `409 Conflict`. If you see that error, stop local `python main.py`, set the host to one replica, and restart.
+
 Open your control bot and send `/start`. Add sources and targets through the inline menus. Enter a public channel as `@username` or its `t.me` link. For a private channel with no username, your signed-in account must already be a member and you must enter its numeric ID.
 
 The bot also supports `/dashboard`, `/status`, `/pause`, `/resume`, `/profile`, and `/setprofile Your Bot Name`. Telegram's command menu is registered automatically each time the service starts.

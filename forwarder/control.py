@@ -2,11 +2,34 @@ from __future__ import annotations
 import html, logging
 from telegram import BotCommand, Update
 from telegram.constants import ParseMode
+from telegram.error import Conflict
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 from .database import Database
 from .service import ForwardingService
 from .ui import cancel_menu, channel_menu, keyboard, main_menu
 LOGGER = logging.getLogger(__name__)
+
+CONFLICT_MESSAGE = (
+    "Another process is already polling this bot token. Telegram allows only one "
+    "getUpdates client. Stop every other copy of this app (local python main.py "
+    "and extra cloud replicas) and keep exactly one running instance."
+)
+
+
+class PollingGuard:
+    def __init__(self, stop, limit: int = 8):
+        self.stop = stop
+        self.limit = limit
+        self.conflicts = 0
+
+    def __call__(self, error: BaseException) -> None:
+        if isinstance(error, Conflict):
+            self.conflicts += 1
+            LOGGER.error(CONFLICT_MESSAGE)
+            if self.conflicts >= self.limit:
+                self.stop()
+            return
+        LOGGER.exception("Control bot polling failed", exc_info=error)
 
 class ControlBot:
     def __init__(self, token, owner_user_id, database: Database, service: ForwardingService):
