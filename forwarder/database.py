@@ -32,7 +32,10 @@ class Database:
             self.connection.execute("ALTER TABLE channels ADD COLUMN access_hash INTEGER")
         self.connection.execute("UPDATE channels SET chat_id = -1000000000000 - chat_id WHERE chat_id > 0")
         self.connection.execute("INSERT OR IGNORE INTO settings VALUES ('enabled', '1')")
-        self.connection.execute("INSERT OR IGNORE INTO settings VALUES ('mode', 'forward')")
+        self.connection.execute("INSERT OR IGNORE INTO settings VALUES ('mode', 'copy')")
+        if self.connection.execute("SELECT 1 FROM settings WHERE key = 'attribution_default_v2'").fetchone() is None:
+            self.connection.execute("UPDATE settings SET value = 'copy' WHERE key = 'mode'")
+            self.connection.execute("INSERT INTO settings VALUES ('attribution_default_v2', '1')")
         self.connection.commit()
 
     def close(self) -> None: self.connection.close()

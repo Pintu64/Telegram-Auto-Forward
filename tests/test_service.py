@@ -54,7 +54,8 @@ def test_live_handler_forwards_own_source_posts(tmp_path):
 
     asyncio.run(service._on_message(event))
 
-    assert [message_ids for _, message_ids in client.forwarded] == [[12]]
+    assert client.sent == [12]
+    assert client.forwarded == []
     assert database.is_delivered(source_id, 12, -1001987654321)
     database.close()
 
@@ -71,8 +72,26 @@ def test_delivers_own_channel_posts(tmp_path):
 
     asyncio.run(service._deliver(message_chat_id(message), [message]))
 
-    assert [message_ids for _, message_ids in client.forwarded] == [[10]]
+    assert client.sent == [10]
+    assert client.forwarded == []
     assert database.is_delivered(source_id, 10, target.chat_id)
+    database.close()
+
+
+def test_forward_mode_keeps_attribution(tmp_path):
+    database = Database(tmp_path / "forward-mode.db")
+    source_id = -1001234567890
+    database.add_channel("source", Channel(source_id, "Source", "source", 88))
+    database.add_channel("target", Channel(-1001987654321, "Target", "target", 99))
+    database.set_setting("mode", "forward")
+    client = FakeClient()
+    service = ForwardingService(client, database, history_limit=0, poll_interval=0)
+    message = FakeMessage(13, PeerChannel(1234567890), out=True)
+
+    asyncio.run(service._deliver(source_id, [message]))
+
+    assert [message_ids for _, message_ids in client.forwarded] == [[13]]
+    assert client.sent == []
     database.close()
 
 
@@ -92,20 +111,30 @@ def test_skips_service_messages_and_same_channel_targets(tmp_path):
 
 
 class FakeMessage:
-    def __init__(self, message_id, peer_id, out=True, action=None, grouped_id=None):
+    def __init__(self, message_id, peer_id, out=True, action=None, grouped_id=None, media=None, text=""):
         self.id = message_id
         self.peer_id = peer_id
         self.out = out
         self.action = action
         self.grouped_id = grouped_id
+        self.media = media
+        self.message = text
 
 
 class FakeClient:
     def __init__(self):
         self.forwarded = []
+        self.sent = []
+        self.files = []
 
     async def forward_messages(self, target, messages):
         self.forwarded.append((target.channel_id if hasattr(target, "channel_id") else target, [message.id for message in messages]))
+
+    async def send_message(self, target, message):
+        self.sent.append(message.id)
+
+    async def send_file(self, target, media, caption=None):
+        self.files.append((media, caption))
 
     async def get_input_entity(self, value):
         return value

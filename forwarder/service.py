@@ -102,12 +102,14 @@ class ForwardingService:
         target = await self._input_peer(target_channel)
         if mode == "forward":
             await self.client.forward_messages(target, messages)
-        else:
-            # Telethon copies a Message object, including its media and caption.
-            # Sending separately is reliable for mixed albums, though Telegram
-            # may display copied album items as individual posts.
-            for message in messages:
-                await self.client.send_message(target, message)
+            return
+        media = [message.media for message in messages if getattr(message, "media", None)]
+        if len(media) > 1:
+            captions = [message.message or "" for message in messages if getattr(message, "media", None)]
+            await self.client.send_file(target, media, caption=captions)
+            return
+        for message in messages:
+            await self.client.send_message(target, message)
 
     async def _input_peer(self, channel):
         if channel.access_hash is not None:
