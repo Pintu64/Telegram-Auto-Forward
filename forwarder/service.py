@@ -14,6 +14,16 @@ class ForwardingService:
     def register(self):
         self.client.add_event_handler(self._on_album, events.Album())
         self.client.add_event_handler(self._on_message, events.NewMessage(incoming=True))
+    async def sync_recent_history(self, limit: int) -> None:
+        if limit <= 0: return
+        for source in self.database.channels("source"):
+            try:
+                peer = await self._input_peer(source)
+                messages = await self.client.get_messages(peer, limit=limit)
+                for message in reversed(messages):
+                    await self._deliver(source.chat_id, [message])
+            except Exception:
+                LOGGER.exception("History sync failed for source %s", source.chat_id)
     async def resolve_channel(self, value: str) -> Channel:
         entity = await self.client.get_entity(normalize_reference(value))
         if not isinstance(entity, TelegramChannel): raise ValueError("Not a channel")
@@ -43,13 +53,7 @@ class ForwardingService:
                 self.database.mark_delivered(source_id, message_ids, target_id)
             except Exception: LOGGER.exception("Delivery failed from %s to %s", source_id, target_id)
     async def _send(self, target_channel, messages, mode):
-        if target_channel.access_hash is not None:
-            entity_id, _ = utils.resolve_id(target_channel.chat_id)
-            target = InputPeerChannel(entity_id, target_channel.access_hash)
-        elif target_channel.username:
-            target = await self.client.get_input_entity(target_channel.username)
-        else:
-            target = await self.client.get_input_entity(target_channel.chat_id)
+        target = await self._input_peer(target_channel)
         if mode == "forward": await self.client.forward_messages(target, messages)
         else:
             # Telethon copies a Message object, including its media and caption.
@@ -57,6 +61,13 @@ class ForwardingService:
             # may display copied album items as individual posts.
             for message in messages:
                 await self.client.send_message(target, message)
+    async def _input_peer(self, channel):
+        if channel.access_hash is not None:
+            entity_id, _ = utils.resolve_id(channel.chat_id)
+            return InputPeerChannel(entity_id, channel.access_hash)
+        if channel.username:
+            return await self.client.get_input_entity(channel.username)
+        return await self.client.get_input_entity(channel.chat_id)
 
 def normalize_reference(value: str) -> str | int:
     cleaned = value.strip()
