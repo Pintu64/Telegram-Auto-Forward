@@ -14,6 +14,7 @@ class Config:
     bot_token: str
     owner_user_id: int
     session_name: str
+    telegram_session: str | None
     database_path: Path
     log_level: str
 
@@ -24,5 +25,5 @@ class Config:
         missing = [name for name in required if not os.getenv(name)]
         if missing:
             raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
-        return cls(int(os.environ["API_ID"]), os.environ["API_HASH"].strip(), os.environ["BOT_TOKEN"].strip(), int(os.environ["OWNER_USER_ID"]), os.getenv("SESSION_NAME", "data/user").strip(), Path(os.getenv("DATABASE_PATH", "data/forwarder.db")), os.getenv("LOG_LEVEL", "INFO").upper())
-
+        session = os.getenv("TELEGRAM_SESSION", "").strip() or None
+        return cls(int(os.environ["API_ID"]), os.environ["API_HASH"].strip(), os.environ["BOT_TOKEN"].strip(), int(os.environ["OWNER_USER_ID"]), os.getenv("SESSION_NAME", "data/user").strip(), session, Path(os.getenv("DATABASE_PATH", "data/forwarder.db")), os.getenv("LOG_LEVEL", "INFO").upper())
