@@ -90,6 +90,7 @@ class ControlBot:
         except Exception as error:
             LOGGER.info("Could not resolve channel: %s", error); await update.effective_message.reply_text("I could not access that channel. Check the username/ID and make sure your signed-in account can open it.", reply_markup=cancel_menu(f"{kind}s")); return
         context.user_data.clear(); await update.effective_message.reply_text(f"Added {html.escape(channel.label)} as a {kind}.", reply_markup=channel_menu(kind, True))
+        context.application.create_task(self.service.sync_recent_history(), update=update)
     async def _show_home(self, update, notice=None):
         enabled = self.database.get_setting("enabled") == "1"; state = "Running" if enabled else "Paused"; text = "<b>Auto Forwarder</b>\n" + (f"\n{html.escape(notice)}\n" if notice else "\n") + f"Status: <b>{state}</b>"; await self._render(update, text, main_menu(enabled))
     async def _show_channels(self, update, kind, notice=None):

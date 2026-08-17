@@ -10,16 +10,16 @@ from .database import Channel, Database
 LOGGER = logging.getLogger(__name__)
 
 class ForwardingService:
-    def __init__(self, client: TelegramClient, database: Database): self.client, self.database = client, database
+    def __init__(self, client: TelegramClient, database: Database, history_limit: int = 50): self.client, self.database, self.history_limit = client, database, history_limit
     def register(self):
         self.client.add_event_handler(self._on_album, events.Album())
         self.client.add_event_handler(self._on_message, events.NewMessage(incoming=True))
-    async def sync_recent_history(self, limit: int) -> None:
-        if limit <= 0: return
+    async def sync_recent_history(self) -> None:
+        if self.history_limit <= 0: return
         for source in self.database.channels("source"):
             try:
                 peer = await self._input_peer(source)
-                messages = await self.client.get_messages(peer, limit=limit)
+                messages = await self.client.get_messages(peer, limit=self.history_limit)
                 for message in reversed(messages):
                     await self._deliver(source.chat_id, [message])
             except Exception:
