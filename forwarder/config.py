@@ -18,6 +18,7 @@ class Config:
     database_path: Path
     log_level: str
     history_limit: int
+    poll_interval: int
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -27,4 +28,15 @@ class Config:
         if missing:
             raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
         session = os.getenv("TELEGRAM_SESSION", "").strip() or None
-        return cls(int(os.environ["API_ID"]), os.environ["API_HASH"].strip(), os.environ["BOT_TOKEN"].strip(), int(os.environ["OWNER_USER_ID"]), os.getenv("SESSION_NAME", "data/user").strip(), session, Path(os.getenv("DATABASE_PATH", "data/forwarder.db")), os.getenv("LOG_LEVEL", "INFO").upper(), max(0, int(os.getenv("HISTORY_LIMIT", "50"))))
+        return cls(
+            int(os.environ["API_ID"]),
+            os.environ["API_HASH"].strip(),
+            os.environ["BOT_TOKEN"].strip(),
+            int(os.environ["OWNER_USER_ID"]),
+            os.getenv("SESSION_NAME", "data/user").strip(),
+            session,
+            Path(os.getenv("DATABASE_PATH", "data/forwarder.db")),
+            os.getenv("LOG_LEVEL", "INFO").upper(),
+            max(0, int(os.getenv("HISTORY_LIMIT", "50"))),
+            max(0, int(os.getenv("POLL_INTERVAL", "20"))),
+        )

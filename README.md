@@ -28,6 +28,6 @@ The bot also supports `/dashboard`, `/status`, `/pause`, `/resume`, `/profile`, 
 - `Forward` keeps Telegram attribution.
 - `Copy` reposts without the forwarded header when Telegram permits it.
 - Protected-content channels cannot be relayed.
-- Live posts are processed immediately, with a duplicate-safe recent-history catch-up after restarts.
-- On startup, the latest `HISTORY_LIMIT` posts from each source are checked and any undelivered posts are forwarded. Set `HISTORY_LIMIT=0` to disable catch-up.
+- Live posts are processed immediately, including posts you make yourself in a source channel.
+- On startup, and every `POLL_INTERVAL` seconds, the latest `HISTORY_LIMIT` posts from each source are checked and any undelivered posts are forwarded. Set `HISTORY_LIMIT=0` to disable catch-up, or `POLL_INTERVAL=0` to disable the repeating poll.
 - Obtain permission to republish content and keep volumes reasonable.
