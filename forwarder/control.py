@@ -1,6 +1,6 @@
 from __future__ import annotations
 import html, logging
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 from .database import Database
@@ -12,10 +12,55 @@ class ControlBot:
     def __init__(self, token, owner_user_id, database: Database, service: ForwardingService):
         self.owner_user_id, self.database, self.service = owner_user_id, database, service
         self.application = Application.builder().token(token).build()
-        self.application.add_handler(CommandHandler("start", self.start)); self.application.add_handler(CommandHandler("cancel", self.start))
+        self.application.add_handler(CommandHandler(["start", "dashboard", "menu"], self.start)); self.application.add_handler(CommandHandler("cancel", self.start))
+        self.application.add_handler(CommandHandler("status", self.status_command))
+        self.application.add_handler(CommandHandler("pause", self.pause_command))
+        self.application.add_handler(CommandHandler("resume", self.resume_command))
+        self.application.add_handler(CommandHandler("profile", self.profile_command))
+        self.application.add_handler(CommandHandler("setprofile", self.set_profile_command))
         self.application.add_handler(CallbackQueryHandler(self.on_button)); self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_text)); self.application.add_error_handler(self.on_error)
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await self._authorized(update): context.user_data.clear(); await self._show_home(update)
+    async def set_commands(self) -> None:
+        await self.application.bot.set_my_commands([
+            BotCommand("dashboard", "Open the forwarding dashboard"),
+            BotCommand("status", "Show forwarding status"),
+            BotCommand("pause", "Pause forwarding"),
+            BotCommand("resume", "Resume forwarding"),
+            BotCommand("profile", "Show bot profile"),
+            BotCommand("cancel", "Return to dashboard"),
+        ])
+
+    async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._authorized(update): await self._show_status(update)
+
+    async def pause_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._authorized(update):
+            self.database.set_setting("enabled", "0")
+            await self._show_home(update, "Forwarding paused.")
+
+    async def resume_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._authorized(update):
+            self.database.set_setting("enabled", "1")
+            await self._show_home(update, "Forwarding resumed.")
+
+    async def profile_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not await self._authorized(update): return
+        bot = await self.application.bot.get_me()
+        await update.effective_message.reply_text(
+            f"<b>Bot profile</b>\n\nName: <b>{html.escape(bot.first_name or 'Auto Forwarder')}</b>\nUsername: @{html.escape(bot.username or 'unknown')}\nOwner ID: <code>{self.owner_user_id}</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard([[('Open dashboard', 'home')]]),
+        )
+
+    async def set_profile_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not await self._authorized(update): return
+        if not context.args:
+            await update.effective_message.reply_text("Usage: /setprofile Your Bot Name", reply_markup=keyboard([[('Back', 'home')]]))
+            return
+        name = " ".join(context.args).strip()[:64]
+        await self.application.bot.set_my_name(name)
+        await update.effective_message.reply_text(f"Bot name updated to <b>{html.escape(name)}</b>.", parse_mode=ParseMode.HTML, reply_markup=keyboard([[('Open dashboard', 'home')]]))
     async def on_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await self._authorized(update) or update.callback_query is None: return
         query, action = update.callback_query, update.callback_query.data or "home"; await query.answer(); context.user_data.clear()
@@ -67,4 +112,3 @@ class ControlBot:
         elif update.callback_query: await update.callback_query.answer("Not authorized.", show_alert=True)
         return False
     async def on_error(self, update, context): LOGGER.exception("Control bot update failed", exc_info=context.error)
-

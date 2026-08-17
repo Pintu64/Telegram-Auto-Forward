@@ -21,6 +21,8 @@ Cloud containers cannot perform the interactive Telegram login. Run `python logi
 
 Open your control bot and send `/start`. Add sources and targets through the inline menus. Enter a public channel as `@username` or its `t.me` link. For a private channel with no username, your signed-in account must already be a member and you must enter its numeric ID.
 
+The bot also supports `/dashboard`, `/status`, `/pause`, `/resume`, `/profile`, and `/setprofile Your Bot Name`. Telegram's command menu is registered automatically each time the service starts.
+
 ## Behavior
 
 - `Forward` keeps Telegram attribution.
